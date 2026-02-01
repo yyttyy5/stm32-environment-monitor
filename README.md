@@ -16,18 +16,18 @@ and implements robust error handling.
 
 ## Architecture
 
-App layer
-├── display
-├── graph
-├── buttons
+App layer: 
+- display
+- graph
+- buttons
 
-Driver layer
-├── bme280
-├── lm35
+Driver layer:
+- bme280
+- lm35
 
-Service layer
-├── ring_buffer
-├── error
+Service layer:
+- ring_buffer
+- error
 
 
 ## Hardware
@@ -42,3 +42,4 @@ Service layer
 ## Notes
 This project is intentionally implemented **without STM32CubeMX code generation**
 to demonstrate low-level understanding of HAL, peripherals and project architecture.
+User created modules contains in /User directory.

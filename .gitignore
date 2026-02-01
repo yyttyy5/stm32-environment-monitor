@@ -1,0 +1,17 @@
+# Build output
+Debug/
+Release/
+
+# IDE files
+*.launch
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# STM32CubeIDE
+.settings/org.eclipse.cdt.codan.core.prefs
+
+# Backup files
+*~

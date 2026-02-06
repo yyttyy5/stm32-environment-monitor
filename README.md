@@ -42,4 +42,5 @@ Service layer:
 ## Notes
 This project is intentionally implemented **without STM32CubeMX code generation**
 to demonstrate low-level understanding of HAL, peripherals and project architecture.
+In docs/images you can find demo photo.
 User created modules contains in /User directory.

@@ -18,7 +18,21 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "app.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
+
+
+void AppTask(void *argument)
+{
+    App_Init();
+
+    for (;;)
+    {
+        App_Loop();
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
 
 /**
   * @brief  The application entry point.
@@ -26,10 +40,16 @@
   */
 int main(void)
 {
-  App_Init();
+	xTaskCreate(
+          AppTask,
+          "App",
+          1024,
+          NULL,
+          tskIDLE_PRIORITY + 2,
+          NULL
+	);
 
-  while (1)
-  {
-	  App_Loop();
-  }
+	vTaskStartScheduler();
+
+	while (1) {}
 }

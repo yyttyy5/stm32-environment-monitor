@@ -25,6 +25,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "FreeRTOS.h"
+#include "queue.h"
 
 /**
  * @brief Button identifiers.
@@ -35,6 +37,12 @@ typedef enum
 	BUTTON_SET_BASE_PRESSURE,
 	BUTTON_COUNT
 } ButtonId;
+
+typedef struct {
+    ButtonId id;
+} ButtonEvent_t;
+
+QueueHandle_t Buttons_GetQueue(void);
 
 /**
  * @brief Initialize button subsystem.

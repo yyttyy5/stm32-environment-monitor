@@ -37,8 +37,13 @@
 /* Latched button events (set in EXTI ISR, cleared on read) */
 static volatile uint8_t button_events[BUTTON_COUNT];
 
-/* Timestamp of last valid button event (for debouncing) */
-static uint32_t last_tick[BUTTON_COUNT];
+static QueueHandle_t buttonQueue = NULL;
+
+
+QueueHandle_t Buttons_GetQueue(void)
+{
+    return buttonQueue;
+}
 
 
 /**
@@ -50,6 +55,8 @@ static uint32_t last_tick[BUTTON_COUNT];
 void Buttons_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    buttonQueue = xQueueCreate(4, sizeof(ButtonEvent_t)); // max 4 события в очереди
 
     // Enable clocks for GPIO ports and SYSCFG (EXTI)
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -111,24 +118,31 @@ bool Buttons_GetEvent(ButtonId id)
  */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+    static uint32_t last_tick[BUTTON_COUNT] = {0};
     uint32_t now = HAL_GetTick();
 
-    // BUTTON_GRAPH_MODE handling
+    ButtonEvent_t evt;
+
     if (GPIO_Pin == BUTTON_GRAPH_MODE_PIN)
     {
         if (now - last_tick[BUTTON_GRAPH_MODE] > DEBOUNCE_MS)
         {
             last_tick[BUTTON_GRAPH_MODE] = now;
-            button_events[BUTTON_GRAPH_MODE] = 1;
+            evt.id = BUTTON_GRAPH_MODE;
+            BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+            xQueueSendFromISR(buttonQueue, &evt, &xHigherPriorityTaskWoken);
+            portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
         }
     }
-    // BUTTON_SET_BASE_PRESSURE handling
     else if (GPIO_Pin == BUTTON_SET_BASE_PRESSURE_PIN)
     {
         if (now - last_tick[BUTTON_SET_BASE_PRESSURE] > DEBOUNCE_MS)
         {
             last_tick[BUTTON_SET_BASE_PRESSURE] = now;
-            button_events[BUTTON_SET_BASE_PRESSURE] = 1;
+            evt.id = BUTTON_SET_BASE_PRESSURE;
+            BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+            xQueueSendFromISR(buttonQueue, &evt, &xHigherPriorityTaskWoken);
+            portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
         }
     }
 }

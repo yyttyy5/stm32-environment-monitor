@@ -32,43 +32,37 @@
 
 typedef struct
 {
-    /* raw buffers */
+    BME280_Data_t bme;
+    LM35_Data_t   lm35;
+} SensorSnapshot_t;
+
+typedef struct
+{
+    float lm35_temp_buf[GRAPH_POINTS];
     float bme_temp_buf[GRAPH_POINTS];
     float bme_press_buf[GRAPH_POINTS];
     float bme_hum_buf[GRAPH_POINTS];
-    float lm35_temp_buf[GRAPH_POINTS];
 
-    /* ring buffers */
+    RingBuffer lm35_temp;
     RingBuffer bme_temp;
     RingBuffer bme_press;
     RingBuffer bme_hum;
-    RingBuffer lm35_temp;
-
-    /* latest values */
-    BME280_Data_t bme;
-    LM35_Data_t   lm35;
-
-} AppState_t;
+} GraphState_t;
 
 typedef enum
 {
-    APP_EVENT_NONE = 0,
     APP_EVENT_BUTTON_GRAPH_MODE,
     APP_EVENT_BUTTON_SET_BASE_PRESSURE,
 } AppEvent_t;
 
-typedef enum {
-    APP_STATE_RUNNING = 0,
-    APP_STATE_ERROR
-} AppStateMachine_t;
 
+GraphState_t gGraphState;
 
-AppState_t gAppState;
-SemaphoreHandle_t gAppStateMutex;
+QueueHandle_t sensorSnapshotQueue;
 QueueHandle_t appEventQueue;
 
 
-static void AppState_Init(AppState_t *s)
+static void GraphState_Init(GraphState_t *s)
 {
     RB_Init(&s->bme_temp,  s->bme_temp_buf,  GRAPH_POINTS);
     RB_Init(&s->bme_press, s->bme_press_buf, GRAPH_POINTS);
@@ -76,71 +70,44 @@ static void AppState_Init(AppState_t *s)
     RB_Init(&s->lm35_temp, s->lm35_temp_buf, GRAPH_POINTS);
 }
 
-void App_HandleEvent(AppEvent_t evt)
-{
-	switch (evt)
-	            {
-	                case APP_EVENT_BUTTON_GRAPH_MODE:
-	                    Graph_SetMode(
-	                        (GraphMode)((Graph_GetMode() + 1) % GRAPH_MODE_COUNT)
-	                    );
-	                    break;
-
-	                case APP_EVENT_BUTTON_SET_BASE_PRESSURE:
-	                    xSemaphoreTake(gAppStateMutex, portMAX_DELAY);
-	                    BME280_SetBasePressure(gAppState.bme.pressure);
-	                    xSemaphoreGive(gAppStateMutex);
-	                    break;
-
-	                default:
-	                    break;
-	            }
-}
-
 
 void SensorTask(void *arg)
 {
-	BME280_Data_t bme;
-	LM35_Data_t lm35;
+    SensorSnapshot_t snap;
 
     for (;;)
     {
-        if (LM35_Read(&lm35))
+        if (LM35_Read(&snap.lm35))
         {
         	Error_Clear(LM35_READ_VALUE_ERROR);
-            xSemaphoreTake(gAppStateMutex, portMAX_DELAY);
-            gAppState.lm35 = lm35;
-            RB_Push(&gAppState.lm35_temp, lm35.temperature_c);
-            xSemaphoreGive(gAppStateMutex);
+            RB_Push(&gGraphState.lm35_temp, snap.lm35.temperature_c);
 
         }
         else
         {
         	// In case of an error, we write down a marker and signal
-            RB_Push(&gAppState.lm35_temp, SENSOR_ERROR_VALUE);
+            RB_Push(&gGraphState.lm35_temp, SENSOR_ERROR_VALUE);
         	Error_Trigger(LM35_READ_VALUE_ERROR);
         }
 
 
-        if (BME280_Read(&bme))
+        if (BME280_Read(&snap.bme))
         {
         	Error_Clear(BME280_READ_VALUE_ERROR);
-            xSemaphoreTake(gAppStateMutex, portMAX_DELAY);
-            gAppState.bme = bme;
-            RB_Push(&gAppState.bme_temp, bme.temperature);
-            RB_Push(&gAppState.bme_press, bme.pressure / PA_TO_MMHG);
-            RB_Push(&gAppState.bme_hum, bme.humidity);
-            xSemaphoreGive(gAppStateMutex);
+            RB_Push(&gGraphState.bme_temp, snap.bme.temperature);
+            RB_Push(&gGraphState.bme_press, snap.bme.pressure / PA_TO_MMHG);
+            RB_Push(&gGraphState.bme_hum, snap.bme.humidity);
         }
         else
         {
         	// In case of an error, we write down are markers and signal
-            RB_Push(&gAppState.bme_temp, SENSOR_ERROR_VALUE);
-            RB_Push(&gAppState.bme_press, SENSOR_ERROR_VALUE);
-            RB_Push(&gAppState.bme_hum, SENSOR_ERROR_VALUE);
+            RB_Push(&gGraphState.bme_temp, SENSOR_ERROR_VALUE);
+            RB_Push(&gGraphState.bme_press, SENSOR_ERROR_VALUE);
+            RB_Push(&gGraphState.bme_hum, SENSOR_ERROR_VALUE);
         	Error_Trigger(BME280_READ_VALUE_ERROR);
         }
 
+        xQueueOverwrite(sensorSnapshotQueue, &snap);
 
         // складываем данные
         vTaskDelay(pdMS_TO_TICKS(500));
@@ -149,19 +116,15 @@ void SensorTask(void *arg)
 
 void DisplayTask(void *arg)
 {
-    BME280_Data_t bme;
-    LM35_Data_t lm35;
+    SensorSnapshot_t snap;
 
     for (;;)
     {
-        xSemaphoreTake(gAppStateMutex, portMAX_DELAY);
-        bme  = gAppState.bme;
-        lm35 = gAppState.lm35;
-        xSemaphoreGive(gAppStateMutex);
-
-        Display_UpdateSensors(&bme, &lm35);
-        Graph_Draw();
-
+    	if (xQueuePeek(sensorSnapshotQueue, &snap, portMAX_DELAY))
+    	{
+    		Display_UpdateSensors(&snap.bme, &snap.lm35);
+    		Graph_Draw();
+    	}
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
@@ -201,21 +164,23 @@ void ButtonTask(void *arg)
 void AppTask(void *arg)
 {
     AppEvent_t evt;
-    static AppStateMachine_t state = APP_STATE_RUNNING;
+    SensorSnapshot_t snap;
 
     for (;;)
     {
-        switch (state)
+    	if (xQueueReceive(appEventQueue, &evt, portMAX_DELAY) == pdTRUE)
         {
-            case APP_STATE_RUNNING:
-                if (xQueueReceive(appEventQueue, &evt, portMAX_DELAY) == pdTRUE)
-                {
-                    App_HandleEvent(evt);
-                }
+    		switch (evt)
+    		{
+            	case APP_EVENT_BUTTON_GRAPH_MODE:
+                	Graph_SetMode((GraphMode)((Graph_GetMode() + 1) % GRAPH_MODE_COUNT));
                 break;
 
-            case APP_STATE_ERROR:
+                case APP_EVENT_BUTTON_SET_BASE_PRESSURE:
+                	if (xQueuePeek(sensorSnapshotQueue, &snap, 0))
+                		BME280_SetBasePressure(snap.bme.pressure);
                 break;
+             }
         }
     }
 }
@@ -251,12 +216,12 @@ int main(void)
     if (!BME280_Init())
     	Error_Trigger(BME280_INIT_ERROR);
 
-    AppState_Init(&gAppState);
+    GraphState_Init(&gGraphState);
 
-    if (!Graph_Init(&gAppState.lm35_temp,
-               &gAppState.bme_temp,
-               &gAppState.bme_press,
-               &gAppState.bme_hum))
+    if (!Graph_Init(&gGraphState.lm35_temp,
+               &gGraphState.bme_temp,
+               &gGraphState.bme_press,
+               &gGraphState.bme_hum))
     {
     	Error_Trigger(GRAPH_INIT_ERROR);
     }
@@ -266,11 +231,11 @@ int main(void)
 
     Buttons_Queue_Init();
 
-    gAppStateMutex = xSemaphoreCreateMutex();
-    configASSERT(gAppStateMutex);
-
     appEventQueue = xQueueCreate(8, sizeof(AppEvent_t));
     configASSERT(appEventQueue);
+
+    sensorSnapshotQueue = xQueueCreate(1, sizeof(SensorSnapshot_t));
+    configASSERT(sensorSnapshotQueue);
 
     xTaskCreate(SensorTask,  "Sensor",  512, NULL, tskIDLE_PRIORITY + 2, NULL);
     xTaskCreate(AppTask,     "App",     512, NULL, tskIDLE_PRIORITY + 2, NULL);

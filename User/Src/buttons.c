@@ -34,8 +34,6 @@
 #define BUTTON_SET_BASE_PRESSURE_PORT    GPIOA
 #define BUTTON_GRAPH_MODE_PORT           GPIOC
 
-/* Latched button events (set in EXTI ISR, cleared on read) */
-static volatile uint8_t button_events[BUTTON_COUNT];
 
 static QueueHandle_t buttonQueue = NULL;
 
@@ -45,7 +43,10 @@ QueueHandle_t Buttons_GetQueue(void)
     return buttonQueue;
 }
 
-
+void Buttons_Queue_Init(void)
+{
+    buttonQueue = xQueueCreate(4, sizeof(ButtonEvent_t));
+}
 /**
  * @brief Initialize button subsystem.
  *
@@ -55,8 +56,6 @@ QueueHandle_t Buttons_GetQueue(void)
 void Buttons_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-    buttonQueue = xQueueCreate(4, sizeof(ButtonEvent_t)); // max 4 события в очереди
 
     // Enable clocks for GPIO ports and SYSCFG (EXTI)
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -82,30 +81,6 @@ void Buttons_Init(void)
     // Configure NVIC for EXTI0 interrupt
     HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(EXTI0_IRQn);
-}
-
-/**
- * @brief Check and clear button event.
- *
- * Returns true if a button press event occurred
- * since the last call for the specified button.
- *
- * @param id Button identifier
- *
- * @retval true   Button event detected
- * @retval false  No button event or invalid ID
- */
-bool Buttons_GetEvent(ButtonId id)
-{
-    if (id >= BUTTON_COUNT)
-        return false;
-
-    if (button_events[id])
-    {
-        button_events[id] = 0;
-        return true;
-    }
-    return false;
 }
 
 /**

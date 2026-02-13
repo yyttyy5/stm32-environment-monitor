@@ -99,8 +99,8 @@ static void DrawCurve(const RingBuffer *rb)
         uint16_t index      = (rb->tail + i) % GRAPH_POINTS;
         uint16_t prev_index = (rb->tail + i - 1 + GRAPH_POINTS) % GRAPH_POINTS;
 
-        uint16_t x0 = GRAPH_X0 + (uint16_t)((i - 1) * dx);
-        uint16_t x1 = GRAPH_X0 + (uint16_t)(i * dx);
+        uint16_t x0 = GRAPH_X0 + 1 + (uint16_t)((i - 1) * dx);
+        uint16_t x1 = GRAPH_X0 + 1 + (uint16_t)(i * dx);
 
         uint16_t y0 = ValueToY(rb->buffer[prev_index]);
         uint16_t y1 = ValueToY(rb->buffer[index]);

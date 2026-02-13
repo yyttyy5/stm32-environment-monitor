@@ -44,6 +44,8 @@ typedef struct {
 
 QueueHandle_t Buttons_GetQueue(void);
 
+void Buttons_Queue_Init(void);
+
 /**
  * @brief Initialize button subsystem.
  *
@@ -51,18 +53,5 @@ QueueHandle_t Buttons_GetQueue(void);
  * Must be called once during system initialization.
  */
 void Buttons_Init(void);
-
-/**
- * @brief Check and clear button event.
- *
- * Returns true if a button press event occurred
- * since the last call for the specified button.
- *
- * @param id Button identifier
- *
- * @retval true   Button event detected
- * @retval false  No button event
- */
-bool Buttons_GetEvent(ButtonId id);
 
 #endif /* BUTTONS_H */

@@ -250,6 +250,8 @@ bool BME280_Init(void)
     if (!BME280_WriteReg(BME280_REG_CTRL_MEAS, 0x27))
     	return false;
 
+    HAL_Delay(5);
+
     return true;
 }
 

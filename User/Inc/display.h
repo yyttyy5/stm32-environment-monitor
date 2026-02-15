@@ -41,14 +41,6 @@
 bool Display_Init(void);
 
 /**
- * @brief Draw static UI elements.
- *
- * Draws labels and other non-changing screen elements.
- * Should be called once after successful display initialization.
- */
-void Display_DrawStatic(void);
-
-/**
  * @brief Update displayed sensor values.
  *
  * Updates dynamic fields on the LCD.

@@ -72,17 +72,40 @@ static GraphMode current_mode = GRAPH_MODE_TEMPERATURE;
 /* Flag indicating graph initialization */
 static bool graph_initialized = false;
 
+
+
+/**
+ * @brief Push a new LM35 temperature reading into the internal ring buffer.
+ *
+ * @param temp Temperature in degrees Celsius to store.
+ *
+ * @note The internal buffer must be initialized via Graph_Init() before
+ * calling this function, otherwise RB_Push() behavior is undefined.
+ */
 void Graph_PushLM35(float temp)
 {
 	RB_Push(&gGraph.lm35_temp, temp);
 }
 
+
+/**
+ * @brief Push new BME280 readings (temperature, pressure, humidity) into the internal buffers.
+ *
+ * @param temp  Temperature in degrees Celsius.
+ * @param press Pressure in mmHg (or pre-scaled value used by system).
+ * @param hum   Relative humidity in percent.
+ *
+ * @note The internal buffers must be initialized via Graph_Init() before
+ * calling this function.
+ */
 void Graph_PushBME(float temp, float press, float hum)
 {
     RB_Push(&gGraph.bme_temp, temp);
     RB_Push(&gGraph.bme_press, press);
     RB_Push(&gGraph.bme_hum, hum);
 }
+
+
 
 /**
  * @brief Convert a sensor value to the corresponding Y coordinate on the LCD.

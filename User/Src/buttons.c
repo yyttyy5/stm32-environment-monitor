@@ -53,7 +53,7 @@ void Buttons_Queue_Init(void)
  * Configures GPIO pins and EXTI interrupts for all buttons.
  * Must be called once during system initialization.
  */
-void Buttons_Init(void)
+void Buttons_GPIO_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
 

@@ -26,6 +26,25 @@
 #define LCD_FRAME_BUFFER_LAYER (uint32_t)(0xd0000000)
 #define CLEAR_STRING           ("                      ")
 
+
+/**
+ * @brief Draw static UI elements.
+ *
+ * Draws non-changing labels for LM35DZ and BME280 sensors.
+ * This should be called once after successful display initialization.
+ */
+static void Display_DrawStatic(void)
+{
+    BSP_LCD_SetFont(&Font20);
+
+    BSP_LCD_SetTextColor(LCD_COLOR_RED);
+    BSP_LCD_DisplayStringAt(0, LCD_HEIGHT - 117, "LM35DZ:", LEFT_MODE);
+
+    BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+    BSP_LCD_DisplayStringAt(0, LCD_HEIGHT - 72, "BME280:", LEFT_MODE);
+}
+
+
 /**
  * @brief Initialize the LCD display.
  *
@@ -40,24 +59,8 @@ bool Display_Init(void)
     BSP_LCD_Clear(LCD_COLOR_BLACK);
     BSP_LCD_SetBackColor(LCD_COLOR_BLACK);
 
+    Display_DrawStatic();
     return true;
-}
-
-/**
- * @brief Draw static UI elements.
- *
- * Draws non-changing labels for LM35DZ and BME280 sensors.
- * This should be called once after successful display initialization.
- */
-void Display_DrawStatic(void)
-{
-    BSP_LCD_SetFont(&Font20);
-
-    BSP_LCD_SetTextColor(LCD_COLOR_RED);
-    BSP_LCD_DisplayStringAt(0, LCD_HEIGHT - 117, "LM35DZ:", LEFT_MODE);
-
-    BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
-    BSP_LCD_DisplayStringAt(0, LCD_HEIGHT - 72, "BME280:", LEFT_MODE);
 }
 
 /**

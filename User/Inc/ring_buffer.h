@@ -52,8 +52,49 @@ bool RB_Init(RingBuffer *rb, const float *buf, uint16_t size);
  */
 bool RB_Push(RingBuffer *rb, float value);
 
-/* read-only API */
+
+/**
+ * @brief Get the number of valid elements currently stored in the ring buffer.
+ *
+ * @details
+ * Returns the count of elements that have been written to the buffer and
+ * have not yet been overwritten. The returned value is always in the range
+ * [0 .. buffer size].
+ *
+ * This function does not modify the buffer state and is safe to call
+ * concurrently with a single writer task, assuming single-writer /
+ * single-reader usage.
+ *
+ * @param rb Pointer to the ring buffer instance.
+ *
+ * @return
+ *  - Number of valid elements in the buffer
+ *  - 0 if @p rb is NULL
+ */
 uint16_t RB_Count(const RingBuffer *rb);
+
+
+/**
+ * @brief Retrieve an element from the ring buffer by logical index.
+ *
+ * @details
+ * The index is interpreted relative to the oldest element currently stored
+ * in the buffer:
+ *  - index = 0 corresponds to the oldest element
+ *  - index = RB_Count(rb) - 1 corresponds to the most recent element
+ *
+ * The function performs bounds checking and does not modify the buffer state.
+ *
+ * If the buffer pointer is NULL or the index is out of range, a special
+ * error marker value (@ref SENSOR_ERROR_VALUE) is returned.
+ *
+ * @param rb    Pointer to the ring buffer instance.
+ * @param index Logical index of the element to retrieve.
+ *
+ * @return
+ *  - The requested element value
+ *  - @ref SENSOR_ERROR_VALUE if @p rb is NULL or @p index is out of range
+ */
 float    RB_Get(const RingBuffer *rb, uint16_t index);
 
 

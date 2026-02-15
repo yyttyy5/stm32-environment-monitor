@@ -43,7 +43,7 @@ typedef enum {
 } ErrorType;
 
 /** @brief Initialize error LEDs. */
-void ErrorLED_Init(void);
+void ErrorLED_GPIO_Init(void);
 
 /** @brief Trigger an error.
  *  @param error  Error title to trigger

@@ -11,11 +11,28 @@
 #include "ring_buffer.h"
 
 
+/**
+ * @brief Return the current number of valid elements in the ring buffer.
+ *
+ * @param rb Pointer to the ring buffer instance.
+ *
+ * @return Number of stored elements, or 0 if the buffer pointer is NULL.
+ */
 uint16_t RB_Count(const RingBuffer *rb)
 {
     return rb ? rb->count : 0;
 }
 
+
+
+/**
+ * @brief Access a buffer element by logical index.
+ *
+ * @param rb    Pointer to the ring buffer instance.
+ * @param index Logical index relative to the oldest element.
+ *
+ * @return The element value if valid, otherwise SENSOR_ERROR_VALUE.
+ */
 float RB_Get(const RingBuffer *rb, uint16_t index)
 {
     if (!rb || index >= rb->count)
@@ -24,6 +41,8 @@ float RB_Get(const RingBuffer *rb, uint16_t index)
     uint16_t real = (rb->tail + index) % rb->size;
     return rb->buffer[real];
 }
+
+
 
 /**
  * @brief Initialize a ring buffer

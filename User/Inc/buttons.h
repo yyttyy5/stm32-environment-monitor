@@ -52,6 +52,6 @@ void Buttons_Queue_Init(void);
  * Configures GPIO and EXTI for button inputs.
  * Must be called once during system initialization.
  */
-void Buttons_Init(void);
+void Buttons_GPIO_Init(void);
 
 #endif /* BUTTONS_H */

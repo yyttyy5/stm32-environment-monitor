@@ -37,15 +37,11 @@ typedef enum {
 /**
  * @brief Initialize the graph module with sensor data buffers.
  *
- * @param lm35       Ring buffer for LM35 temperature readings
- * @param bme_temp   Ring buffer for BME280 temperature readings
- * @param bme_press  Ring buffer for BME280 pressure readings
- * @param bme_hum    Ring buffer for BME280 humidity readings
- *
  * @retval true  Initialization succeeded
  * @retval false Initialization failed
  */
 bool Graph_Init(void);
+
 
 /**
  * @brief Draw the graph on the display.
@@ -55,6 +51,7 @@ bool Graph_Init(void);
  */
 void Graph_Draw(void);
 
+
 /**
  * @brief Set the graph display mode.
  *
@@ -62,12 +59,14 @@ void Graph_Draw(void);
  */
 void Graph_SetMode(GraphMode mode);
 
+
 /**
  * @brief Get the current graph display mode.
  *
  * @return Current GraphMode
  */
 GraphMode Graph_GetMode(void);
+
 
 /**
  * @brief Check if the graph module has been initialized.
@@ -77,8 +76,35 @@ GraphMode Graph_GetMode(void);
  */
 bool Is_Graph_Initialised(void);
 
+
+/**
+ * @brief Push a new LM35 temperature reading into the graph buffer.
+ *
+ * @details
+ * Stores the latest LM35 sensor reading into the internal ring buffer
+ * used for graph plotting. The value will be included in the next call
+ * to Graph_Draw().
+ *
+ * The function is safe to call from a single task context. It does not
+ * block or fail unless the internal buffer is not initialized.
+ *
+ * @param temp Temperature reading in degrees Celsius.
+ */
 void Graph_PushLM35(float temp);
 
+
+/**
+ * @brief Push a new BME280 sensor reading into the graph buffers.
+ *
+ * @details
+ * Stores the latest BME280 sensor readings (temperature, pressure, humidity)
+ * into their respective internal ring buffers used for graph plotting.
+ * The values will be included in the next call to Graph_Draw().
+ *
+ * @param temp Temperature in degrees Celsius.
+ * @param press Pressure in mmHg (or other pre-scaled unit as used by your system).
+ * @param hum   Relative humidity in percent.
+ */
 void Graph_PushBME(float temp, float press, float hum);
 
 #endif /* GRAPH_H */

@@ -75,7 +75,7 @@ static void Critical_Error_Handle(ErrorRecord *rec)
  *
  * Configures GPIO pins as outputs and turns off both LEDs.
  */
-void ErrorLED_Init(void)
+void ErrorLED_GPIO_Init(void)
 {
     __HAL_RCC_GPIOG_CLK_ENABLE();
 

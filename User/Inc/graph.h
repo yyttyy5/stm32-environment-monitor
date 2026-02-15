@@ -45,8 +45,7 @@ typedef enum {
  * @retval true  Initialization succeeded
  * @retval false Initialization failed
  */
-bool Graph_Init(const RingBuffer *lm35, const RingBuffer *bme_temp,
-				const RingBuffer *bme_press, const RingBuffer *bme_hum);
+bool Graph_Init(void);
 
 /**
  * @brief Draw the graph on the display.
@@ -77,5 +76,9 @@ GraphMode Graph_GetMode(void);
  * @retval false  Graph module not initialized
  */
 bool Is_Graph_Initialised(void);
+
+void Graph_PushLM35(float temp);
+
+void Graph_PushBME(float temp, float press, float hum);
 
 #endif /* GRAPH_H */

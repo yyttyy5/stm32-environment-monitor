@@ -30,7 +30,6 @@ typedef struct {
     uint16_t count;  /**< Number of elements currently stored */
 } RingBuffer;
 
-
 /**
  * @brief Initialize a ring buffer
  *
@@ -52,5 +51,10 @@ bool RB_Init(RingBuffer *rb, const float *buf, uint16_t size);
  * @retval false Failed (e.g., invalid buffer)
  */
 bool RB_Push(RingBuffer *rb, float value);
+
+/* read-only API */
+uint16_t RB_Count(const RingBuffer *rb);
+float    RB_Get(const RingBuffer *rb, uint16_t index);
+
 
 #endif /* RING_BUFFER_H */

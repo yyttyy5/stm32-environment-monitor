@@ -51,11 +51,20 @@ static const GraphScale graph_scales[] = {
     [GRAPH_MODE_HUMIDITY]    = { 0, 100, "hum,%" }
 };
 
-/* Ring buffers for sensor data */
-static const RingBuffer *temp_bme_rb  = NULL;
-static const RingBuffer *temp_lm35_rb = NULL;
-static const RingBuffer *press_rb     = NULL;
-static const RingBuffer *hum_rb       = NULL;
+typedef struct
+{
+    float lm35_temp_buf[GRAPH_POINTS];
+    float bme_temp_buf[GRAPH_POINTS];
+    float bme_press_buf[GRAPH_POINTS];
+    float bme_hum_buf[GRAPH_POINTS];
+
+    RingBuffer lm35_temp;
+    RingBuffer bme_temp;
+    RingBuffer bme_press;
+    RingBuffer bme_hum;
+} GraphState_t;
+
+static GraphState_t gGraph;
 
 /* Current graph mode */
 static GraphMode current_mode = GRAPH_MODE_TEMPERATURE;
@@ -63,6 +72,17 @@ static GraphMode current_mode = GRAPH_MODE_TEMPERATURE;
 /* Flag indicating graph initialization */
 static bool graph_initialized = false;
 
+void Graph_PushLM35(float temp)
+{
+	RB_Push(&gGraph.lm35_temp, temp);
+}
+
+void Graph_PushBME(float temp, float press, float hum)
+{
+    RB_Push(&gGraph.bme_temp, temp);
+    RB_Push(&gGraph.bme_press, press);
+    RB_Push(&gGraph.bme_hum, hum);
+}
 
 /**
  * @brief Convert a sensor value to the corresponding Y coordinate on the LCD.
@@ -89,25 +109,23 @@ static uint16_t ValueToY(float value)
  */
 static void DrawCurve(const RingBuffer *rb)
 {
-    if (!rb || rb->count < 2)
-        return;
+	uint16_t count = RB_Count(rb);
+	if (count < 2)
+	    return;
 
     float dx = (float)GRAPH_WIDTH / (GRAPH_POINTS - 1);
 
-    for (uint16_t i = 1; i < rb->count; i++)
+    for (uint16_t i = 1; i < RB_Count(rb); i++)
     {
-        uint16_t index      = (rb->tail + i) % GRAPH_POINTS;
-        uint16_t prev_index = (rb->tail + i - 1 + GRAPH_POINTS) % GRAPH_POINTS;
-
         uint16_t x0 = GRAPH_X0 + 1 + (uint16_t)((i - 1) * dx);
         uint16_t x1 = GRAPH_X0 + 1 + (uint16_t)(i * dx);
 
-        uint16_t y0 = ValueToY(rb->buffer[prev_index]);
-        uint16_t y1 = ValueToY(rb->buffer[index]);
+        uint16_t y0 = ValueToY(RB_Get(rb, i - 1));
+        uint16_t y1 = ValueToY(RB_Get(rb, i));
 
         // Drawing transparent curve in case of sensor read error
-        if (rb->buffer[prev_index] == SENSOR_ERROR_VALUE ||
-        	rb->buffer[index] == SENSOR_ERROR_VALUE)
+        if (RB_Get(rb, i - 1) == SENSOR_ERROR_VALUE ||
+        	RB_Get(rb, i)     == SENSOR_ERROR_VALUE)
         {
             uint32_t prev_text_color = BSP_LCD_GetTextColor();
         	BSP_LCD_SetTextColor(LCD_COLOR_TRANSPARENT);
@@ -257,18 +275,14 @@ bool Is_Graph_Initialised(void)
  * @retval true  Initialization succeeded
  * @retval false Initialization failed
  */
-bool Graph_Init(const RingBuffer *lm35, const RingBuffer *bme_temp,
-				const RingBuffer *bme_press, const RingBuffer *bme_hum)
+bool Graph_Init(void)
 {
-	if (!lm35 || !bme_temp || !bme_press || !bme_hum)
-		return false;
-
     uint32_t prev_text_color = BSP_LCD_GetTextColor();
 
-    temp_lm35_rb = lm35;
-    temp_bme_rb  = bme_temp;
-    press_rb = bme_press;
-    hum_rb = bme_hum;
+    RB_Init(&gGraph.lm35_temp, gGraph.lm35_temp_buf, GRAPH_POINTS);
+    RB_Init(&gGraph.bme_temp,  gGraph.bme_temp_buf,  GRAPH_POINTS);
+    RB_Init(&gGraph.bme_press, gGraph.bme_press_buf, GRAPH_POINTS);
+    RB_Init(&gGraph.bme_hum,   gGraph.bme_hum_buf,   GRAPH_POINTS);
 
     DrawAxes();
     BSP_LCD_SetTextColor(prev_text_color);
@@ -302,32 +316,32 @@ void Graph_Draw(void)
     switch (current_mode)
     {
         case GRAPH_MODE_TEMPERATURE:
-            if (temp_bme_rb)
+            if (&gGraph.bme_temp)
             {
                 BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
-                DrawCurve(temp_bme_rb);
+                DrawCurve(&gGraph.bme_temp);
             }
 
-            if (temp_lm35_rb)
+            if (&gGraph.lm35_temp)
             {
                 BSP_LCD_SetTextColor(LCD_COLOR_RED);
-                DrawCurve(temp_lm35_rb);
+                DrawCurve(&gGraph.lm35_temp);
             }
             break;
 
         case GRAPH_MODE_PRESSURE:
-            if (press_rb)
+            if (&gGraph.bme_press)
             {
                 BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
-                DrawCurve(press_rb);
+                DrawCurve(&gGraph.bme_press);
             }
             break;
 
         case GRAPH_MODE_HUMIDITY:
-            if (hum_rb)
+            if (&gGraph.bme_hum)
             {
                 BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
-                DrawCurve(hum_rb);
+                DrawCurve(&gGraph.bme_hum);
             }
             break;
     }

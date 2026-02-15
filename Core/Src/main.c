@@ -36,57 +36,35 @@ typedef struct
     LM35_Data_t   lm35;
 } SensorSnapshot_t;
 
-typedef struct
-{
-    float lm35_temp_buf[GRAPH_POINTS];
-    float bme_temp_buf[GRAPH_POINTS];
-    float bme_press_buf[GRAPH_POINTS];
-    float bme_hum_buf[GRAPH_POINTS];
-
-    RingBuffer lm35_temp;
-    RingBuffer bme_temp;
-    RingBuffer bme_press;
-    RingBuffer bme_hum;
-} GraphState_t;
-
 typedef enum
 {
     APP_EVENT_BUTTON_GRAPH_MODE,
     APP_EVENT_BUTTON_SET_BASE_PRESSURE,
 } AppEvent_t;
 
-
-GraphState_t gGraphState;
-
-QueueHandle_t sensorSnapshotQueue;
-QueueHandle_t appEventQueue;
-
-
-static void GraphState_Init(GraphState_t *s)
+typedef struct
 {
-    RB_Init(&s->bme_temp,  s->bme_temp_buf,  GRAPH_POINTS);
-    RB_Init(&s->bme_press, s->bme_press_buf, GRAPH_POINTS);
-    RB_Init(&s->bme_hum,   s->bme_hum_buf,   GRAPH_POINTS);
-    RB_Init(&s->lm35_temp, s->lm35_temp_buf, GRAPH_POINTS);
-}
+    QueueHandle_t sensorSnapshotQ;
+    QueueHandle_t appEventQ;
+} AppContext;
 
 
 void SensorTask(void *arg)
 {
     SensorSnapshot_t snap;
+    AppContext *ctx = arg;
 
     for (;;)
     {
         if (LM35_Read(&snap.lm35))
         {
         	Error_Clear(LM35_READ_VALUE_ERROR);
-            RB_Push(&gGraphState.lm35_temp, snap.lm35.temperature_c);
-
+        	Graph_PushLM35(snap.lm35.temperature_c);
         }
         else
         {
         	// In case of an error, we write down a marker and signal
-            RB_Push(&gGraphState.lm35_temp, SENSOR_ERROR_VALUE);
+        	Graph_PushLM35(SENSOR_ERROR_VALUE);
         	Error_Trigger(LM35_READ_VALUE_ERROR);
         }
 
@@ -94,20 +72,16 @@ void SensorTask(void *arg)
         if (BME280_Read(&snap.bme))
         {
         	Error_Clear(BME280_READ_VALUE_ERROR);
-            RB_Push(&gGraphState.bme_temp, snap.bme.temperature);
-            RB_Push(&gGraphState.bme_press, snap.bme.pressure / PA_TO_MMHG);
-            RB_Push(&gGraphState.bme_hum, snap.bme.humidity);
+        	Graph_PushBME(snap.bme.temperature, snap.bme.pressure / PA_TO_MMHG, snap.bme.humidity);
         }
         else
         {
         	// In case of an error, we write down are markers and signal
-            RB_Push(&gGraphState.bme_temp, SENSOR_ERROR_VALUE);
-            RB_Push(&gGraphState.bme_press, SENSOR_ERROR_VALUE);
-            RB_Push(&gGraphState.bme_hum, SENSOR_ERROR_VALUE);
+        	Graph_PushBME(SENSOR_ERROR_VALUE, SENSOR_ERROR_VALUE, SENSOR_ERROR_VALUE);
         	Error_Trigger(BME280_READ_VALUE_ERROR);
         }
 
-        xQueueOverwrite(sensorSnapshotQueue, &snap);
+        xQueueOverwrite(ctx->sensorSnapshotQ, &snap);
 
         // складываем данные
         vTaskDelay(pdMS_TO_TICKS(500));
@@ -117,10 +91,11 @@ void SensorTask(void *arg)
 void DisplayTask(void *arg)
 {
     SensorSnapshot_t snap;
+    AppContext *ctx = arg;
 
     for (;;)
     {
-    	if (xQueuePeek(sensorSnapshotQueue, &snap, portMAX_DELAY))
+    	if (xQueuePeek(ctx->sensorSnapshotQ, &snap, portMAX_DELAY))
     	{
     		Display_UpdateSensors(&snap.bme, &snap.lm35);
     		Graph_Draw();
@@ -134,6 +109,7 @@ void ButtonTask(void *arg)
 {
     ButtonEvent_t btn;
     AppEvent_t appEvt;
+    AppContext *ctx = arg;
 
     QueueHandle_t btnQueue = Buttons_GetQueue();
 
@@ -145,12 +121,12 @@ void ButtonTask(void *arg)
             {
                 case BUTTON_GRAPH_MODE:
                     appEvt = APP_EVENT_BUTTON_GRAPH_MODE;
-                    xQueueSend(appEventQueue, &appEvt, 0);
+                    xQueueSend(ctx->appEventQ, &appEvt, 0);
                     break;
 
                 case BUTTON_SET_BASE_PRESSURE:
                     appEvt = APP_EVENT_BUTTON_SET_BASE_PRESSURE;
-                    xQueueSend(appEventQueue, &appEvt, 0);
+                    xQueueSend(ctx->appEventQ, &appEvt, 0);
                     break;
 
                 default:
@@ -165,10 +141,11 @@ void AppTask(void *arg)
 {
     AppEvent_t evt;
     SensorSnapshot_t snap;
+    AppContext *ctx = arg;
 
     for (;;)
     {
-    	if (xQueueReceive(appEventQueue, &evt, portMAX_DELAY) == pdTRUE)
+    	if (xQueueReceive(ctx->appEventQ, &evt, portMAX_DELAY) == pdTRUE)
         {
     		switch (evt)
     		{
@@ -177,7 +154,7 @@ void AppTask(void *arg)
                 break;
 
                 case APP_EVENT_BUTTON_SET_BASE_PRESSURE:
-                	if (xQueuePeek(sensorSnapshotQueue, &snap, 0))
+                	if (xQueuePeek(ctx->sensorSnapshotQ, &snap, 0))
                 		BME280_SetBasePressure(snap.bme.pressure);
                 break;
              }
@@ -201,6 +178,8 @@ void ErrorTask(void *arg)
   */
 int main(void)
 {
+	static AppContext app;
+
 	if (!System_Init())
 		Error_Trigger(SYSTEM_INIT_ERROR);
 
@@ -216,31 +195,21 @@ int main(void)
     if (!BME280_Init())
     	Error_Trigger(BME280_INIT_ERROR);
 
-    GraphState_Init(&gGraphState);
-
-    if (!Graph_Init(&gGraphState.lm35_temp,
-               &gGraphState.bme_temp,
-               &gGraphState.bme_press,
-               &gGraphState.bme_hum))
-    {
+    if (!Graph_Init())
     	Error_Trigger(GRAPH_INIT_ERROR);
-    }
 
     Display_DrawStatic();
 
 
     Buttons_Queue_Init();
 
-    appEventQueue = xQueueCreate(8, sizeof(AppEvent_t));
-    configASSERT(appEventQueue);
+    app.sensorSnapshotQ = xQueueCreate(1, sizeof(SensorSnapshot_t));
+    app.appEventQ = xQueueCreate(8, sizeof(AppEvent_t));
 
-    sensorSnapshotQueue = xQueueCreate(1, sizeof(SensorSnapshot_t));
-    configASSERT(sensorSnapshotQueue);
-
-    xTaskCreate(SensorTask,  "Sensor",  512, NULL, tskIDLE_PRIORITY + 2, NULL);
-    xTaskCreate(AppTask,     "App",     512, NULL, tskIDLE_PRIORITY + 2, NULL);
-    xTaskCreate(DisplayTask, "Display", 512, NULL, tskIDLE_PRIORITY + 1, NULL);
-    xTaskCreate(ButtonTask,  "Button",  256, NULL, tskIDLE_PRIORITY + 3, NULL);
+    xTaskCreate(SensorTask,  "Sensor",  512, &app, tskIDLE_PRIORITY + 2, NULL);
+    xTaskCreate(AppTask,     "App",     512, &app, tskIDLE_PRIORITY + 2, NULL);
+    xTaskCreate(DisplayTask, "Display", 512, &app, tskIDLE_PRIORITY + 1, NULL);
+    xTaskCreate(ButtonTask,  "Button",  256, &app, tskIDLE_PRIORITY + 3, NULL);
     xTaskCreate(ErrorTask, "Error", 256, NULL, tskIDLE_PRIORITY + 1, NULL);
 
 

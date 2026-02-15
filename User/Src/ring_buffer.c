@@ -11,6 +11,19 @@
 #include "ring_buffer.h"
 
 
+uint16_t RB_Count(const RingBuffer *rb)
+{
+    return rb ? rb->count : 0;
+}
+
+float RB_Get(const RingBuffer *rb, uint16_t index)
+{
+    if (!rb || index >= rb->count)
+        return SENSOR_ERROR_VALUE;
+
+    uint16_t real = (rb->tail + index) % rb->size;
+    return rb->buffer[real];
+}
 
 /**
  * @brief Initialize a ring buffer
